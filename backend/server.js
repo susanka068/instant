@@ -11,7 +11,7 @@ app.use(express.json());
 const API_HOST = 'https://instagram-scraper-api2.p.rapidapi.com/v1';
 const API_KEY = process.env.RAPID_API_KEY;
 
-const getFollowers = async (usernameOrUrl) => {
+const getFollowers = async (usernameOrUrl, res) => {
   const followers = [];
   
   let pagination_token = "test string";
@@ -40,8 +40,9 @@ const getFollowers = async (usernameOrUrl) => {
       
 
     } catch (error) {
-      console.error(`Error fetching followers: ${error.message}`);
-      break;
+      console.error(`Error fetching followers. ${error.message}`);
+      res.status(500).json({ error: `Error fetching followers. ${error.message}` });
+      return;
     }
   }
   
@@ -49,7 +50,7 @@ const getFollowers = async (usernameOrUrl) => {
 };
 
 
-const getFollowing = async (usernameOrUrl) => {
+const getFollowing = async (usernameOrUrl, res) => {
   const following = [];
   let pagination_token = "test string";
   let baseUrl = `${API_HOST}/following?username_or_id_or_url=${usernameOrUrl}` ; 
@@ -77,8 +78,9 @@ const getFollowing = async (usernameOrUrl) => {
       
 
     } catch (error) {
-      console.error(`Error fetching following: ${error.message}`);
-      break;
+      console.error(`Error fetching following. ${error.message}`);
+      res.status(500).json({ error: `Error fetching following. ${error.message}` });
+      return;
     }
   }
   return following;
@@ -93,12 +95,20 @@ const findNonFollowers = (followers, following) => {
 app.post('/api/non-followers', async (req, res) => {
   const { usernameOrUrl } = req.body;
 
+  if (!usernameOrUrl) {
+    res.status(400).json({ error: 'Username or URL is required' });
+    return;
+  }
+
   try {
-    const [followers, following] = await Promise.all([getFollowers(usernameOrUrl), getFollowing(usernameOrUrl)]);
+    const [followers, following] = await Promise.all([getFollowers(usernameOrUrl, res), getFollowing(usernameOrUrl, res)]);
     const nonFollowers = findNonFollowers(followers, following);
     res.json(nonFollowers);
   } catch (error) {
     console.error(`Error: ${error.message}`);
+    if (error.response && error.response.data) {
+      return res.status(500).json({ error: error.response.data.message });
+    }
     res.status(500).json({ error: 'An error occurred' });
   }
 });
